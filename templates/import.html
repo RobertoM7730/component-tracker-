@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Import BOM{% endblock %}
+{% block content %}
+
+<h1>Import a BOM</h1>
+<p class="sub">Upload a CSV or XLSX from LCSC, DigiKey, KiCad, or any spreadsheet.
+   The importer auto-detects the supplier and columns.</p>
+
+<div class="import-grid">
+
+  <form class="card import-card" method="post" action="{{ url_for('import_order_preview') }}"
+        enctype="multipart/form-data">
+    <h2>📦 Order BOM <span class="badge new">adds stock</span></h2>
+    <p class="desc">An order you placed. Matching parts get restocked; new parts
+       are added to inventory with their specs filled in.</p>
+    <div class="dropzone">
+      <input type="file" name="bom" accept=".csv,.xlsx,.xls,.xlsm" required>
+    </div>
+    <button class="btn primary" type="submit">Preview order →</button>
+  </form>
+
+  <form class="card import-card" method="post" action="{{ url_for('import_pcb_preview') }}"
+        enctype="multipart/form-data">
+    <h2>🔧 PCB BOM <span class="badge merge">uses stock</span></h2>
+    <p class="desc">The parts a board needs. We check what you have, flag any
+       shortages, then deduct the parts when you build it.</p>
+    <div class="form-grid" style="margin-bottom:14px">
+      <div class="field">
+        <label>Board / project name</label>
+        <input type="text" name="name" placeholder="Sensor node v2">
+      </div>
+      <div class="field">
+        <label>How many boards?</label>
+        <input type="number" name="board_qty" value="1" min="1">
+      </div>
+    </div>
+    <div class="dropzone">
+      <input type="file" name="bom" accept=".csv,.xlsx,.xls,.xlsm" required>
+    </div>
+    <button class="btn primary" type="submit">Check & preview →</button>
+  </form>
+
+</div>
+
+<p class="sub" style="margin-top:24px">
+  Tip: column names don't have to match exactly — the importer recognizes common
+  variants (Qty / Order Qty / Quantity, MPN / Manufacturer Part Number, LCSC Part
+  Number / Customer NO., Designator / Reference, and more).
+</p>
+
+{% endblock %}

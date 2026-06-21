@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly component tracker DB backup
+
+[Timer]
+# Runs at 02:30 daily; set this a little before your Proxmox backup window.
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

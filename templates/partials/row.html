@@ -1,0 +1,40 @@
+<tr id="row-{{ c.id }}">
+  <td>
+    <div class="pn mono">{{ c.part_number or '—' }}</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:3px">
+      <span class="pill">{{ c.category }}</span>
+      {% if c.manufacturer %}<span class="muted" style="font-size:12px">{{ c.manufacturer }}</span>{% endif %}
+    </div>
+  </td>
+  <td>
+    {% if c.specs %}
+      <div class="specs">{% for s in c.specs %}<span class="spec">{{ s.value_text }}</span>{% endfor %}</div>
+    {% elif c.value %}<span class="val">{{ c.value }}</span>
+    {% else %}<span class="muted">—</span>{% endif %}
+  </td>
+  <td>
+    {% if c.package %}<span class="mono">{{ c.package }}</span>{% endif %}
+    {% if c.mount %}<span class="badge {{ 'merge' if c.mount=='SMD' else 'new' }}" style="margin-left:4px">{{ c.mount }}</span>{% endif %}
+    {% if not c.package and not c.mount %}<span class="muted">—</span>{% endif %}
+  </td>
+  <td class="hide-sm muted">{{ c.location or '—' }}</td>
+  <td>
+    <div class="qty {{ 'warn' if c.quantity <= c.min_quantity else '' }}">
+      <button title="Remove one" hx-post="{{ url_for('adjust_qty', cid=c.id) }}"
+              hx-vals='{"delta": "-1"}' hx-target="#row-{{ c.id }}" hx-swap="outerHTML">−</button>
+      <span class="n">{{ c.quantity }}</span>
+      <button title="Add one" hx-post="{{ url_for('adjust_qty', cid=c.id) }}"
+              hx-vals='{"delta": "1"}' hx-target="#row-{{ c.id }}" hx-swap="outerHTML">+</button>
+    </div>
+    {% if c.min_quantity %}<div class="muted" style="font-size:11px;margin-top:3px">min {{ c.min_quantity }}</div>{% endif %}
+  </td>
+  <td class="hide-sm muted">{{ c.supplier or '—' }}</td>
+  <td>
+    <div class="row-actions">
+      <a class="btn sm" href="{{ url_for('edit_component', cid=c.id) }}">Edit</a>
+      <button class="btn sm danger" hx-post="{{ url_for('delete_component', cid=c.id) }}"
+              hx-target="#row-{{ c.id }}" hx-swap="outerHTML"
+              hx-confirm="Delete {{ c.part_number or c.value or 'this component' }}?">✕</button>
+    </div>
+  </td>
+</tr>

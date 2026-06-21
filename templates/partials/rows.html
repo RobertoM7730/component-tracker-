@@ -1,0 +1,11 @@
+{% if components %}
+  {% for c in components %}{% include "partials/row.html" %}{% endfor %}
+{% else %}
+  <tr><td colspan="7">
+    <div class="empty">
+      <div class="big">🔍</div>
+      No components here yet. Try a different tab or search, or
+      <a href="{{ url_for('import_home') }}">import a BOM</a>.
+    </div>
+  </td></tr>
+{% endif %}

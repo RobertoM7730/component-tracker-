@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if component else 'Add' }} component{% endblock %}
+{% block content %}
+
+<h1>{{ 'Edit component' if component else 'Add a component' }}</h1>
+<p class="sub">Only category and quantity are required — fill in the rest later.</p>
+
+{% set c = component or {} %}
+<form method="post"
+      action="{{ url_for('save_component', cid=component.id) if component else url_for('save_component') }}">
+  <div class="card" style="padding:24px">
+    <div class="form-grid">
+      <div class="field">
+        <label>Manufacturer part number</label>
+        <input type="text" name="part_number" value="{{ c.part_number or '' }}" placeholder="RC0805FR-0710KL">
+      </div>
+      <div class="field">
+        <label>Category *</label>
+        <input type="text" name="category" id="category" list="cat-list"
+               value="{{ c.category or '' }}" placeholder="resistor" required oninput="syncSpecs()">
+        <datalist id="cat-list">
+          {% for cat in spec_meta.keys() %}<option value="{{ cat }}">{% endfor %}
+          <option value="ic"><option value="connector"><option value="switch">
+        </datalist>
+      </div>
+      <div class="field">
+        <label>Value <span class="muted">(free text)</span></label>
+        <input type="text" name="value" value="{{ c.value or '' }}" placeholder="10kΩ 1%">
+      </div>
+      <div class="field">
+        <label>Package / footprint</label>
+        <input type="text" name="package" value="{{ c.package or '' }}" placeholder="0805">
+      </div>
+      <div class="field">
+        <label>Mounting</label>
+        <select name="mount">
+          {% set m = c.mount or '' %}
+          <option value="" {{ 'selected' if not m }}>— auto-detect —</option>
+          <option value="SMD" {{ 'selected' if m=='SMD' }}>SMD (surface mount)</option>
+          <option value="THT" {{ 'selected' if m=='THT' }}>THT (through-hole)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Quantity *</label>
+        <input type="number" name="quantity" value="{{ c.quantity if c.quantity is not none else 0 }}" min="0" required>
+      </div>
+      <div class="field">
+        <label>Low-stock threshold</label>
+        <input type="number" name="min_quantity" value="{{ c.min_quantity if c.min_quantity is not none else 0 }}" min="0">
+      </div>
+      <div class="field">
+        <label>Location</label>
+        <input type="text" name="location" value="{{ c.location or '' }}" placeholder="Drawer B3">
+      </div>
+      <div class="field">
+        <label>Manufacturer</label>
+        <input type="text" name="manufacturer" value="{{ c.manufacturer or '' }}">
+      </div>
+      <div class="field">
+        <label>Supplier</label>
+        <input type="text" name="supplier" value="{{ c.supplier or '' }}" placeholder="LCSC">
+      </div>
+      <div class="field">
+        <label>Supplier part #</label>
+        <input type="text" name="supplier_pn" value="{{ c.supplier_pn or '' }}" placeholder="C25744">
+      </div>
+      <div class="field">
+        <label>Unit cost</label>
+        <input type="text" name="unit_cost" value="{{ c.unit_cost if c.unit_cost is not none else '' }}" placeholder="0.012">
+      </div>
+      <div class="field">
+        <label>Datasheet URL</label>
+        <input type="url" name="datasheet_url" value="{{ c.datasheet_url or '' }}">
+      </div>
+      <div class="field full">
+        <label>Notes</label>
+        <textarea name="notes" rows="2">{{ c.notes or '' }}</textarea>
+      </div>
+    </div>
+
+    <div id="specs-wrap" style="margin-top:8px">
+      <div class="spec-head">Characteristics</div>
+      {% for cat, fields in spec_meta.items() %}
+        <div class="spec-group form-grid" data-cat="{{ cat }}" style="display:none">
+          {% for name, label, unit in fields %}
+            {% set saved = (component.specs | selectattr('name','equalto',name) | map(attribute='value_text') | first) if component else '' %}
+            <div class="field">
+              <label>{{ label }} {% if unit %}<span class="muted">({{ unit }})</span>{% endif %}</label>
+              <input type="text" name="spec_{{ name }}" value="{{ saved or '' }}"
+                     placeholder="{{ {'resistance':'10k','capacitance':'10µF','inductance':'10µH','wattage':'1/4W','voltage':'25V','current':'2A','tolerance':'1%','frequency':'16MHz'}[name] }}">
+            </div>
+          {% endfor %}
+        </div>
+      {% endfor %}
+      <p class="muted" id="no-specs" style="display:none;font-size:13px;margin:4px 0 0">
+        No structured specs for this category — the Value field covers it.
+      </p>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn primary" type="submit">{{ 'Save changes' if component else 'Add component' }}</button>
+      <a class="btn" href="{{ url_for('index') }}">Cancel</a>
+    </div>
+  </div>
+</form>
+
+<script>
+  function syncSpecs() {
+    var cat = (document.getElementById('category').value || '').trim().toLowerCase();
+    var any = false;
+    document.querySelectorAll('.spec-group').forEach(function (g) {
+      var show = g.dataset.cat === cat;
+      g.style.display = show ? 'grid' : 'none';
+      if (show) any = true;
+    });
+    document.getElementById('no-specs').style.display = (cat && !any) ? 'block' : 'none';
+  }
+  syncSpecs();
+</script>
+
+{% endblock %}

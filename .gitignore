@@ -1,0 +1,16 @@
+# The whole inventory lives in this one file — never commit it.
+data/
+*.db
+*.sqlite
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+*.egg-info/
+
+# OS / editor noise
+.DS_Store
+.idea/
+.vscode/

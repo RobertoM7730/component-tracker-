@@ -1,0 +1,5 @@
+Designator,Quantity,Value,Footprint,Manufacturer Part Number,Manufacturer
+"R1,R2,R3",3,10kΩ,0805,RC0805FR-0710KL,YAGEO
+"C1,C2",2,10µF,0805,CL21A106KOQNNNE,SAMSUNG
+U1,1,LM358,SOIC-8,LM358DR2G,onsemi
+J1,1,Header2,2.54mm,0022232021,Molex

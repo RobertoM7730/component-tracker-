@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Build history{% endblock %}
+{% block content %}
+
+<h1>Build history</h1>
+<p class="sub">Every PCB BOM you've consumed from stock, newest first.</p>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr><th>Board</th><th>Qty built</th><th>Lines</th><th>Parts used</th><th>When</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      {% if builds %}
+        {% for b in builds %}
+        <tr>
+          <td class="pn">{{ b.name }}</td>
+          <td>{{ b.board_qty }}</td>
+          <td>{{ b.line_count }}</td>
+          <td>{{ b.parts_used }}</td>
+          <td class="muted">{{ b.created_at }}</td>
+          <td class="muted">{{ b.notes or '—' }}</td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="6"><div class="empty"><div class="big">🔧</div>
+          No builds yet. Import a PCB BOM to record one.</div></td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

@@ -1,0 +1,4 @@
+LCSC Part Number,Manufacture Part Number,Manufacturer,Customer NO.,Package,Description,RoHS,Order Qty,Unit Price($),Order Price($)
+C25744,RC0805FR-0710KL,YAGEO,,0805,"10kΩ ±1% 1/8W Chip Resistor",YES,100,0.0017,0.17
+C1525,CL21A106KOQNNNE,SAMSUNG,,0805,"10µF ±10% 16V X5R Capacitor",YES,50,0.012,0.60
+C7063,LM358DR2G,onsemi,,SOIC-8,"Dual Operational Amplifier IC",YES,10,0.08,0.80

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Order preview{% endblock %}
+{% block content %}
+
+<h1>Order import preview</h1>
+<p class="sub">
+  Detected supplier: <strong>{{ result.supplier }}</strong> ·
+  {{ result.rows | length }} line(s).
+  Uncheck anything you don't want, tweak quantities, then add to inventory.
+</p>
+
+{% for w in result.warnings %}<div class="flash warn">{{ w }}</div>{% endfor %}
+
+<form method="post" action="{{ url_for('import_order_commit') }}">
+  <input type="hidden" name="payload" value="{{ payload | e }}">
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="all" checked onclick="var ck=this.checked;document.querySelectorAll('.inc').forEach(function(c){c.checked=ck})"></th>
+          <th>Part number</th><th>Specs</th><th>Category</th>
+          <th class="hide-sm">Form factor</th><th>Qty</th><th class="hide-sm">Location</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in result.rows %}
+        <tr>
+          <td><input class="inc" type="checkbox" name="include" value="{{ loop.index0 }}" checked></td>
+          <td class="mono pn">{{ r.part_number or r.supplier_pn or '—' }}
+            {% if r.manufacturer %}<div class="muted" style="font-size:12px">{{ r.manufacturer }}</div>{% endif %}
+          </td>
+          <td>
+            {% if r.specs %}<div class="specs">{% for s in r.specs %}<span class="spec">{{ s.value_text }}</span>{% endfor %}</div>
+            {% else %}{{ r.value or r.description or '—' }}{% endif %}
+          </td>
+          <td><input type="text" name="category_{{ loop.index0 }}" value="{{ r.category }}" style="width:120px"></td>
+          <td class="mono hide-sm">{{ r.package or '—' }}{% if r.mount %} <span class="badge {{ 'merge' if r.mount=='SMD' else 'new' }}">{{ r.mount }}</span>{% endif %}</td>
+          <td><input type="number" name="qty_{{ loop.index0 }}" value="{{ r.quantity }}" min="0" style="width:80px"></td>
+          <td class="hide-sm"><input type="text" name="location_{{ loop.index0 }}" value="" placeholder="bin…" style="width:90px"></td>
+          <td>
+            {% if r.existing_id %}<span class="badge merge">restock</span>
+              <div class="muted" style="font-size:11px">have {{ r.existing_qty }}</div>
+            {% else %}<span class="badge new">new</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="form-actions">
+    <button class="btn primary" type="submit">Add to inventory</button>
+    <a class="btn" href="{{ url_for('import_home') }}">Cancel</a>
+  </div>
+</form>
+
+{% endblock %}

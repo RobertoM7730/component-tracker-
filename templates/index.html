@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="stats">
+  <div class="stat"><div class="label">Distinct parts</div><div class="value">{{ stats.lines }}</div></div>
+  <div class="stat"><div class="label">Total units</div><div class="value">{{ stats.units }}</div></div>
+  <div class="stat"><div class="label">Inventory value</div><div class="value">{{ stats.value | money }}</div></div>
+  <div class="stat low"><div class="label">Low stock</div><div class="value">{{ stats.low or 0 }}</div></div>
+</div>
+
+<h1>Inventory</h1>
+<p class="sub">Browse by type, search a characteristic (“10k”, “SMD”), or filter by range — try “resistance&gt;=1k wattage&gt;=0.25”, or use the Filters panel.</p>
+
+<div class="tabs">
+  {% for t in tabs %}
+    <button type="button" class="tab {{ 'active' if t.active else '' }}" data-cat="{{ t.value }}"
+            hx-get="{{ url_for('search') }}" hx-vals='{"category": "{{ t.value }}"}'
+            hx-target="#rows" hx-include="[name='q'],[name='sort'],[name='q_specs']"
+            onclick="setTab(this)">
+      {{ t.label }} <span class="tab-count">{{ t.count }}</span>
+    </button>
+  {% endfor %}
+</div>
+
+<form class="toolbar" onsubmit="return false">
+  <input type="hidden" name="category" value="{{ category }}">
+  <input type="hidden" name="q_specs" value="{{ q_specs }}">
+  <div class="search">
+    <span class="icon">⌕</span>
+    <input type="text" name="q" placeholder="Search part, value, spec (10k, 1/4W), or type voltage>=25…"
+           value="{{ search }}" hx-get="{{ url_for('search') }}"
+           hx-trigger="keyup changed delay:250ms, search"
+           hx-target="#rows" hx-include="[name='category'],[name='sort'],[name='q_specs']">
+  </div>
+  <button type="button" class="btn" id="filter-btn" onclick="toggleFilters()">⚙ Filters</button>
+  <select name="sort" hx-get="{{ url_for('search') }}" hx-target="#rows"
+          hx-include="[name='q'],[name='category'],[name='q_specs']">
+    <option value="updated_at" {{ 'selected' if sort=='updated_at' }}>Recently updated</option>
+    <option value="part_number" {{ 'selected' if sort=='part_number' }}>Part number</option>
+    <option value="category" {{ 'selected' if sort=='category' }}>Category</option>
+    <option value="quantity" {{ 'selected' if sort=='quantity' }}>Quantity</option>
+  </select>
+  <a class="btn primary" href="{{ url_for('new_component') }}">+ Add part</a>
+</form>
+
+<div id="filters" class="filters" style="display:none">
+  <div class="filters-hint">Set a min and/or max. Engineering units work (1k, 0.25, 100n, 16). Conditions combine with AND.</div>
+  {% for cat, fields in filter_meta.items() %}
+    <div class="filter-group" data-cat="{{ cat }}" style="display:none">
+      {% for name, label, unit in fields %}
+        <div class="filter-row">
+          <span class="filter-label">{{ label }}{% if unit %} <span class="muted">({{ unit }})</span>{% endif %}</span>
+          <input class="fmin" data-spec="{{ name }}" type="text" placeholder="min">
+          <span class="filter-dash">–</span>
+          <input class="fmax" data-spec="{{ name }}" type="text" placeholder="max">
+        </div>
+      {% endfor %}
+    </div>
+  {% endfor %}
+  <div class="filter-actions">
+    <button type="button" class="btn primary sm" onclick="applyFilters()">Apply filters</button>
+    <button type="button" class="btn sm" onclick="clearFilters()">Clear</button>
+  </div>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr><th>Part</th><th>Specs</th><th>Form factor</th>
+          <th class="hide-sm">Location</th><th>Qty</th><th class="hide-sm">Supplier</th><th></th></tr>
+    </thead>
+    <tbody id="rows">{% include "partials/rows.html" %}</tbody>
+  </table>
+</div>
+
+<script>
+  const SEARCH_URL = "{{ url_for('search') }}";
+  const GROUP_CATS = Array.from(document.querySelectorAll('.filter-group')).map(function(g){return g.dataset.cat;});
+
+  function mappedCat() {
+    var cat = document.querySelector("[name='category']").value || '';
+    return GROUP_CATS.indexOf(cat) >= 0 ? cat : 'all';
+  }
+  function showFilterGroup() {
+    var target = mappedCat();
+    document.querySelectorAll('.filter-group').forEach(function (g) {
+      g.style.display = (g.dataset.cat === target) ? 'grid' : 'none';
+    });
+  }
+  function setTab(btn) {
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
+    btn.classList.add('active');
+    document.querySelector("[name='category']").value = btn.dataset.cat;
+    showFilterGroup();
+  }
+  function toggleFilters() {
+    var p = document.getElementById('filters');
+    p.style.display = (p.style.display === 'none') ? 'block' : 'none';
+    showFilterGroup();
+  }
+  function runSearch() {
+    window.htmx.ajax('GET', SEARCH_URL, {
+      target: '#rows',
+      values: {
+        q: document.querySelector("[name='q']").value,
+        q_specs: document.querySelector("[name='q_specs']").value,
+        category: document.querySelector("[name='category']").value,
+        sort: document.querySelector("[name='sort']").value
+      }
+    });
+  }
+  function applyFilters() {
+    var group = document.querySelector('.filter-group[data-cat="' + mappedCat() + '"]');
+    var tokens = [];
+    if (group) {
+      group.querySelectorAll('.fmin').forEach(function (i) { if (i.value.trim()) tokens.push(i.dataset.spec + '>=' + i.value.trim()); });
+      group.querySelectorAll('.fmax').forEach(function (i) { if (i.value.trim()) tokens.push(i.dataset.spec + '<=' + i.value.trim()); });
+    }
+    document.querySelector("[name='q_specs']").value = tokens.join(' ');
+    document.getElementById('filter-btn').classList.toggle('active', tokens.length > 0);
+    runSearch();
+  }
+  function clearFilters() {
+    document.querySelectorAll('.fmin, .fmax').forEach(function (i) { i.value = ''; });
+    document.querySelector("[name='q_specs']").value = '';
+    document.getElementById('filter-btn').classList.remove('active');
+    runSearch();
+  }
+</script>
+
+{% endblock %}

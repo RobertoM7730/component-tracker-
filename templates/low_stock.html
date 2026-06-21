@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Low stock{% endblock %}
+{% block content %}
+
+<h1>Low stock</h1>
+<p class="sub">Parts at or below their low-stock threshold — time to reorder.</p>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Part</th><th>Specs</th><th>Form factor</th>
+        <th class="hide-sm">Location</th><th>Qty</th>
+        <th class="hide-sm">Supplier</th><th></th>
+      </tr>
+    </thead>
+    <tbody id="rows">
+      {% if components %}
+        {% for c in components %}{% include "partials/row.html" %}{% endfor %}
+      {% else %}
+        <tr><td colspan="7"><div class="empty"><div class="big">✅</div>
+          Nothing is low on stock. Nice.</div></td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

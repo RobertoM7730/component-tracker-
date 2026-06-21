@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}PCB build preview{% endblock %}
+{% block content %}
+
+<h1>Build check: {{ name }}</h1>
+<p class="sub">
+  Detected supplier: <strong>{{ result.supplier }}</strong> ·
+  {{ result.rows | length }} line(s) · building <strong>{{ board_qty }}</strong> board(s).
+</p>
+
+{% if buildable %}
+  <div class="banner ok">✅ You have enough stock for every part. Building will deduct them.</div>
+{% else %}
+  <div class="banner warn">⚠️ Some parts are short or not in inventory (highlighted below).
+     You can still record the build — short parts deduct down to zero.</div>
+{% endif %}
+
+{% for w in result.warnings %}<div class="flash warn">{{ w }}</div>{% endfor %}
+
+<form method="post" action="{{ url_for('import_pcb_commit') }}">
+  <input type="hidden" name="payload" value="{{ payload | e }}">
+  <input type="hidden" name="name" value="{{ name | e }}">
+  <input type="hidden" name="board_qty" value="{{ board_qty }}">
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Designator</th><th>Part number</th><th>Value</th>
+          <th>Per board</th><th>Need ({{ board_qty }}×)</th>
+          <th>In stock</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in result.rows %}
+        <tr>
+          <td class="mono muted">{{ r.designator or '—' }}</td>
+          <td class="mono pn">{{ r.part_number or r.supplier_pn or '—' }}</td>
+          <td>{{ r.value or '—' }}</td>
+          <td>{{ r.qty_per_board }}</td>
+          <td><strong>{{ r.need }}</strong></td>
+          <td>{{ r.in_stock }}</td>
+          <td>
+            {% if r.component_id is none %}
+              <span class="badge short">not in stock</span>
+            {% elif r.short > 0 %}
+              <span class="badge short">short {{ r.short }}</span>
+            {% else %}
+              <span class="badge ok">ok</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="padding:18px;margin-top:16px">
+    <div class="field full">
+      <label>Build notes (optional)</label>
+      <input type="text" name="notes" placeholder="Assembled 2026-06-20, rev B">
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button class="btn primary" type="submit">Record build & deduct stock</button>
+    <a class="btn" href="{{ url_for('import_home') }}">Cancel</a>
+  </div>
+</form>
+
+{% endblock %}

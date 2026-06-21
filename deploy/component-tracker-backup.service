@@ -1,0 +1,8 @@
+[Unit]
+Description=Backup the component tracker SQLite database
+
+[Service]
+Type=oneshot
+User=tracker
+Group=tracker
+ExecStart=/opt/component-tracker/deploy/backup.sh
