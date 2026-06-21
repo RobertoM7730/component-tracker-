@@ -19,6 +19,7 @@ import db
 import bom
 import specs
 import query
+import lookup
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("TRACKER_SECRET", "dev-only-change-me")
@@ -45,8 +46,12 @@ def money(v):
 
 
 def build_tabs(active):
-    """Build the tab bar: All, each canonical category, then Other — each with a
-    live count so empty tabs are still visible."""
+    """Build the tab bar: All, each canonical category, then any other category
+    that's actually in use (auto-created from the data), then Uncategorized.
+
+    The canonical tabs always show (even at count 0) so the core families stay
+    put. New purposes like "voltage regulator" appear on their own tab the moment
+    a part lands in them — no code change needed — and drop off when emptied."""
     counts = db.category_counts()
     total = sum(counts.values())
     tabs = [{"label": "All", "value": "", "count": total,
@@ -54,10 +59,19 @@ def build_tabs(active):
     for label, value in CANON_TABS:
         tabs.append({"label": label, "value": value,
                      "count": counts.get(value, 0), "active": active == value})
-    other = sum(n for cat, n in counts.items()
-                if cat not in db.CANONICAL_CATEGORIES)
-    tabs.append({"label": "Other", "value": "other",
-                 "count": other, "active": active == "other"})
+
+    # Auto-created tabs: any in-use category that isn't canonical or the
+    # uncategorized bucket. Title-cased for display, raw value for filtering.
+    extra = [c for c in db.list_categories()
+             if c not in db.CANONICAL_CATEGORIES and c != "uncategorized"]
+    for value in extra:
+        tabs.append({"label": value.title(), "value": value,
+                     "count": counts.get(value, 0), "active": active == value})
+
+    uncat = (counts.get("uncategorized", 0) + counts.get("", 0)
+             + counts.get(None, 0))
+    tabs.append({"label": "Uncategorized", "value": "uncategorized",
+                 "count": uncat, "active": active == "uncategorized"})
     return tabs
 
 
@@ -281,6 +295,12 @@ def import_order_preview():
         return redirect(url_for("import_home"))
 
     for r in result["rows"]:
+        # Offline rules already set r["category"]; only spend an online lookup on
+        # the ones they couldn't place (and only if a key is configured).
+        if r.get("category") == "uncategorized":
+            online = lookup.lookup_category(r.get("part_number"))
+            if online:
+                r["category"] = online
         existing = db.find_component_by_part(r["part_number"], r["supplier_pn"])
         r["existing_id"] = existing["id"] if existing else None
         r["existing_qty"] = existing["quantity"] if existing else None

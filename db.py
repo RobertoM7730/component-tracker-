@@ -93,7 +93,9 @@ def list_components(search=None, category=None, sort="updated_at", low_stock=Fal
                 f"           AND value_num {o} ?)")
         params += [name, value]
 
-    if category == "other":
+    if category == "uncategorized":
+        sql += " AND (category IS NULL OR category = '' OR category = 'uncategorized')"
+    elif category == "other":
         placeholders = ", ".join("?" for _ in CANONICAL_CATEGORIES)
         sql += f" AND category NOT IN ({placeholders})"
         params += CANONICAL_CATEGORIES
@@ -174,6 +176,20 @@ def category_counts():
     ).fetchall()
     conn.close()
     return {r["category"]: r["n"] for r in rows}
+
+
+def list_categories():
+    """Return the distinct, non-empty category names actually in use, sorted.
+    Drives the auto-created category tabs so a new purpose (e.g. the first time a
+    "voltage regulator" is added) shows up without any code change."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT DISTINCT category FROM components "
+        "WHERE category IS NOT NULL AND category != '' "
+        "ORDER BY category COLLATE NOCASE ASC"
+    ).fetchall()
+    conn.close()
+    return [r["category"] for r in rows]
 
 
 def get_component(cid):

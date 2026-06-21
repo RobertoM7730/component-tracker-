@@ -35,19 +35,58 @@ HEADER_ALIASES = {
     ],
 }
 
+# Categorization runs top to bottom and returns the FIRST match, so order
+# matters: the finer "purpose" categories sit above the broad families, so a
+# linear regulator becomes "voltage regulator" instead of the generic "ic", and
+# a MOSFET becomes "mosfet" instead of the catch-all "transistor". To add a new
+# purpose, drop another (name, [patterns]) tuple in the right spot — nothing else
+# needs to change; a category with stock automatically gets its own tab.
 CATEGORY_RULES = [
+    # --- finer purposes (checked first) ---
+    ("voltage regulator", [r"\bvoltage regulator", r"\bregulator\b", r"\bLDO\b",
+                           r"\bbuck\b", r"\bboost\b", r"\bdc[-/ ]?dc\b",
+                           r"\bswitching reg", r"\blinear reg", r"\bpmic\b"]),
+    ("voltage reference", [r"\bvoltage reference", r"\bvref\b", r"\bshunt reference"]),
+    ("optocoupler", [r"\boptocoupler", r"\bopto-?isolator", r"\boptoisolator",
+                     r"\bphotocoupler"]),
+    ("mosfet", [r"\bmosfet", r"\bn-?channel\b", r"\bp-?channel\b"]),
+    ("microcontroller", [r"\bmicro ?controller", r"\bmcu\b"]),
+    # --- broad families ---
     ("resistor", [r"\bresistor", r"\bres\b", r"\d+\s*k?ohm", r"\d+\s*k?Ω", r"\bRC\d{3,4}"]),
     ("capacitor", [r"\bcapacitor", r"\bcap\b", r"\d+\s*[pnuµ]f", r"mlcc", r"tantalum"]),
     ("inductor", [r"\binductor", r"\bferrite", r"\d+\s*[pnuµm]h\b", r"\bbead\b"]),
     ("diode", [r"\bdiode", r"\bzener", r"\bschottky", r"\bled\b", r"\brectifier"]),
-    ("transistor", [r"\btransistor", r"\bmosfet", r"\bbjt\b", r"\bnpn\b", r"\bpnp\b", r"\bigbt"]),
-    ("ic", [r"\bic\b", r"micro ?controller", r"\bmcu\b", r"\bamplifier", r"\bregulator",
-            r"\beeprom", r"\bflash\b", r"\bop-?amp", r"\blogic\b", r"\bdriver\b", r"\bsensor"]),
+    ("transistor", [r"\btransistor", r"\bbjt\b", r"\bnpn\b", r"\bpnp\b", r"\bigbt", r"\bjfet"]),
+    ("ic", [r"\bic\b", r"\bamplifier", r"\beeprom", r"\bflash\b", r"\bop-?amp",
+            r"\blogic\b", r"\bdriver\b", r"\bsensor"]),
     ("connector", [r"\bconnector", r"\bheader", r"\bsocket", r"\bjack\b", r"\bterminal",
                    r"\busb\b", r"\bjst\b"]),
     ("crystal", [r"\bcrystal", r"\boscillator", r"\bresonator", r"\bMHz\b"]),
     ("switch", [r"\bswitch", r"\bbutton", r"\btactile", r"\brelay\b"]),
     ("fuse", [r"\bfuse", r"\bptc\b", r"\bpolyfuse"]),
+]
+
+# Fallback when the description text matches nothing: many parts arrive as a bare
+# manufacturer part number (e.g. "AO3407") with no descriptive words, so we map
+# common part-number families to a category. Matched with re.match (anchored at
+# the start) against the UPPERCASED part number. Add families freely.
+PART_PREFIXES = [
+    ("mosfet", [r"AO3\d{3}", r"AO\d{4}", r"IRF\d", r"IRL[ZU]?\d", r"BSS\d",
+                r"2N7000", r"SI\d{4}", r"2SK\d", r"FQP\d", r"FD[SN]\d", r"AOD\d"]),
+    ("transistor", [r"2N\d", r"BC[0-9]", r"2SC\d", r"2SA\d", r"MMBT", r"S8050",
+                    r"S8550", r"BD\d", r"TIP\d", r"BCP\d"]),
+    ("voltage regulator", [r"LM78\d", r"LM79\d", r"LM317", r"LM337", r"LM1117",
+                           r"AMS1117", r"LD1117", r"MIC5\d", r"MCP170\d", r"TPS\d",
+                           r"LP29\d", r"XC6206", r"HT75\d", r"AOZ\d", r"RT9\d{3}",
+                           r"ME6211", r"SY8\d{3}"]),
+    ("voltage reference", [r"TL431", r"LM4040", r"LM336", r"LM385", r"REF\d{2}"]),
+    ("optocoupler", [r"PC817", r"PC8\d", r"EL817", r"6N13\d", r"TLP\d", r"LTV\d"]),
+    ("diode", [r"1N4\d", r"1N5\d", r"BAT\d", r"BAV\d", r"SS1\d", r"SS3\d", r"US1\w"]),
+    ("microcontroller", [r"ATMEGA", r"ATTINY", r"STM32", r"STM8", r"ESP32", r"ESP8266",
+                         r"PIC1\d", r"RP2040", r"GD32", r"CH32"]),
+    ("ic", [r"NE555", r"LM358", r"LM324", r"LM393", r"TL07\d", r"TL08\d", r"SN74",
+            r"74[HL][CS]", r"CD40\d", r"MAX232", r"AT24C", r"MCP23\d"]),
+    ("crystal", [r"HC-49", r"ABM\d", r"ECS-"]),
 ]
 
 
@@ -56,13 +95,23 @@ def _norm_header(h):
 
 
 def guess_category(*texts):
+    """Best-effort category from a part's text. Tries descriptive keywords first
+    (most reliable when present), then falls back to part-number families so a
+    bare part number still gets categorized, and finally "uncategorized"."""
     blob = " ".join(t for t in texts if t).lower()
-    if not blob:
-        return "uncategorized"
-    for cat, patterns in CATEGORY_RULES:
-        for p in patterns:
-            if re.search(p, blob, re.IGNORECASE):
-                return cat
+    if blob:
+        for cat, patterns in CATEGORY_RULES:
+            for p in patterns:
+                if re.search(p, blob, re.IGNORECASE):
+                    return cat
+    for t in texts:
+        token = (t or "").strip().upper()
+        if not token:
+            continue
+        for cat, patterns in PART_PREFIXES:
+            for p in patterns:
+                if re.match(p, token):
+                    return cat
     return "uncategorized"
 
 

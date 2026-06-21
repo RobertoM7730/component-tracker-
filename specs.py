@@ -16,6 +16,11 @@ SPECS_BY_CATEGORY = {
     "inductor":   [("inductance", "H"), ("current", "A"), ("tolerance", "%")],
     "diode":      [("voltage", "V"), ("current", "A")],
     "transistor": [("voltage", "V"), ("current", "A")],
+    "mosfet":     [("voltage", "V"), ("current", "A")],
+    "voltage regulator": [("voltage", "V"), ("current", "A")],
+    "voltage reference": [("voltage", "V"), ("tolerance", "%")],
+    "optocoupler": [("voltage", "V"), ("current", "A")],
+    "microcontroller": [("voltage", "V"), ("frequency", "Hz")],
     "fuse":       [("current", "A"), ("voltage", "V")],
     "crystal":    [("frequency", "Hz")],
 }
