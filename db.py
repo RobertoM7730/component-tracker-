@@ -16,7 +16,7 @@ SCHEMA_PATH = os.path.join(BASE_DIR, "schema.sql")
 
 COMPONENT_FIELDS = [
     "part_number", "category", "value", "package", "quantity", "min_quantity",
-    "location", "manufacturer", "supplier", "supplier_pn", "unit_cost",
+    "location", "container", "manufacturer", "supplier", "supplier_pn", "unit_cost",
     "mount", "datasheet_url", "notes",
 ]
 
@@ -54,6 +54,8 @@ def init_db():
         existing = {r["name"] for r in conn.execute("PRAGMA table_info(components)")}
         if "mount" not in existing:
             conn.execute("ALTER TABLE components ADD COLUMN mount TEXT")
+        if "container" not in existing:
+            conn.execute("ALTER TABLE components ADD COLUMN container TEXT")
     conn.close()
 
 
@@ -79,10 +81,10 @@ def list_components(search=None, category=None, sort="updated_at", low_stock=Fal
             like = f"%{term}%"
             sql += (" AND (part_number LIKE ? OR value LIKE ? OR category LIKE ?"
                     " OR manufacturer LIKE ? OR supplier_pn LIKE ? OR location LIKE ?"
-                    " OR package LIKE ? OR mount LIKE ?"
+                    " OR container LIKE ? OR package LIKE ? OR mount LIKE ?"
                     " OR id IN (SELECT component_id FROM component_specs"
                     "           WHERE value_text LIKE ? OR name LIKE ?))")
-            params += [like] * 10
+            params += [like] * 11
 
     for name, op, value in (spec_conditions or []):
         o = _SPEC_OPS.get(op)
@@ -379,3 +381,141 @@ def list_builds():
     ).fetchall()
     conn.close()
     return rows
+
+
+def get_build(build_id):
+    """Return one build as a dict with its ``items`` list attached, or None."""
+    conn = get_connection()
+    b = conn.execute("SELECT * FROM pcb_builds WHERE id = ?", (build_id,)).fetchone()
+    if b is None:
+        conn.close()
+        return None
+    b = dict(b)
+    b["items"] = [dict(r) for r in conn.execute(
+        "SELECT * FROM build_items WHERE build_id = ? ORDER BY id", (build_id,)
+    ).fetchall()]
+    conn.close()
+    return b
+
+
+def delete_build(build_id):
+    """Delete a build and return the parts it consumed back to stock. Returns the
+    number of units restocked, or None if the build didn't exist. This undoes the
+    stock deduction the build made, so inventory stays honest."""
+    conn = get_connection()
+    b = conn.execute("SELECT id FROM pcb_builds WHERE id = ?",
+                     (build_id,)).fetchone()
+    if b is None:
+        conn.close()
+        return None
+    with conn:
+        now = _now()
+        restocked = 0
+        items = conn.execute(
+            "SELECT component_id, qty_consumed FROM build_items WHERE build_id = ?",
+            (build_id,)
+        ).fetchall()
+        for it in items:
+            cid, qc = it["component_id"], (it["qty_consumed"] or 0)
+            if cid and qc:
+                conn.execute(
+                    "UPDATE components SET quantity = quantity + ?, updated_at = ? "
+                    "WHERE id = ?", (qc, now, cid)
+                )
+                restocked += qc
+        # build_items are removed by ON DELETE CASCADE (foreign_keys is ON).
+        conn.execute("DELETE FROM pcb_builds WHERE id = ?", (build_id,))
+    conn.close()
+    return restocked
+
+
+def update_build(build_id, board_qty=None, name=None, notes=None):
+    """Edit a build after the fact, reconciling stock when the quantity changes.
+
+    Changing ``board_qty`` recomputes consumption per part: the amount this build
+    previously took is returned to stock, then the new amount is deducted (clamped
+    so stock never goes negative). Returns (True, shortages) on success, where
+    ``shortages`` lists any parts that couldn't fully cover an increase, or
+    (False, None) if the build doesn't exist."""
+    conn = get_connection()
+    b = conn.execute("SELECT * FROM pcb_builds WHERE id = ?",
+                     (build_id,)).fetchone()
+    if b is None:
+        conn.close()
+        return False, None
+    with conn:
+        now = _now()
+        fields = {}
+        if name is not None and name.strip():
+            fields["name"] = name.strip()
+        if notes is not None:
+            fields["notes"] = notes.strip()
+
+        shortages = []
+        if board_qty is not None:
+            new_qty = max(1, int(board_qty))
+            if new_qty != b["board_qty"]:
+                items = conn.execute(
+                    "SELECT * FROM build_items WHERE build_id = ?", (build_id,)
+                ).fetchall()
+                for it in items:
+                    per = int(it["qty_per_board"] or 0)
+                    old_consumed = int(it["qty_consumed"] or 0)
+                    need = per * new_qty
+                    cid = it["component_id"]
+                    new_consumed = 0
+                    if cid:
+                        comp = conn.execute(
+                            "SELECT quantity, part_number FROM components WHERE id = ?",
+                            (cid,)
+                        ).fetchone()
+                        if comp:
+                            # Give back what this build had taken, then take anew.
+                            available = comp["quantity"] + old_consumed
+                            new_consumed = min(need, available)
+                            conn.execute(
+                                "UPDATE components SET quantity = ?, updated_at = ? "
+                                "WHERE id = ?",
+                                (available - new_consumed, now, cid)
+                            )
+                            if new_consumed < need:
+                                shortages.append(
+                                    f"{comp['part_number'] or it['part_number']}: "
+                                    f"needed {need}, only {new_consumed} available"
+                                )
+                        else:
+                            shortages.append(
+                                f"{it['part_number'] or it['value'] or 'unknown'}: "
+                                f"no longer in inventory ({need} needed)"
+                            )
+                    else:
+                        shortages.append(
+                            f"{it['part_number'] or it['value'] or 'unknown'}: "
+                            f"not in inventory ({need} needed)"
+                        )
+                    conn.execute(
+                        "UPDATE build_items SET qty_consumed = ? WHERE id = ?",
+                        (new_consumed, it["id"])
+                    )
+                fields["board_qty"] = new_qty
+
+        if fields:
+            assignments = ", ".join(f"{k} = ?" for k in fields)
+            conn.execute(
+                f"UPDATE pcb_builds SET {assignments} WHERE id = ?",
+                list(fields.values()) + [build_id]
+            )
+    conn.close()
+    return True, shortages
+
+
+def clear_container(cid):
+    """Explicitly blank a component's container label (update_component skips
+    empty values, so clearing needs its own path)."""
+    conn = get_connection()
+    with conn:
+        conn.execute(
+            "UPDATE components SET container = NULL, updated_at = ? WHERE id = ?",
+            (_now(), cid),
+        )
+    conn.close()

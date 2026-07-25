@@ -211,3 +211,57 @@ tbody tr:hover { background: var(--panel-2); }
 .filter-dash { color: var(--muted); }
 .filter-actions { display: flex; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
 @media (max-width: 820px) { .filter-group { grid-template-columns: 1fr; } }
+
+/* ---- Component detail page (NFC tag target) ---------------------------- */
+.detail-head { margin-bottom: 18px; }
+.detail-head h1 { margin-bottom: 6px; word-break: break-word; }
+.detail-tags { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.detail-grid {
+  display: grid; grid-template-columns: minmax(220px, 280px) 1fr;
+  gap: 16px; align-items: start;
+}
+.detail-qty-card { text-align: center; }
+.detail-qty-card .label { margin-bottom: 10px; }
+.qty-detail {
+  display: inline-flex; align-items: center; gap: 14px;
+  font-size: 22px; font-weight: 700;
+}
+.qty-detail.warn .n { color: #b45309; }
+.qty-detail button {
+  width: 48px; height: 48px; border-radius: 10px; font-size: 26px;
+  line-height: 1; cursor: pointer; border: 1px solid #d1d5db; background: #f9fafb;
+}
+.qty-detail button:active { background: #e5e7eb; }
+.qty-detail .n { min-width: 48px; }
+table.kv { width: 100%; border-collapse: collapse; }
+table.kv th {
+  text-align: left; vertical-align: top; white-space: nowrap;
+  padding: 8px 14px 8px 0; color: #6b7280; font-weight: 600; width: 1%;
+}
+table.kv td { padding: 8px 0; vertical-align: top; }
+table.kv td.loc { font-weight: 700; }
+.nfc-card { margin-top: 16px; }
+.nfc-row { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.nfc-url { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.nfc-url code {
+  background: #f3f4f6; padding: 8px 10px; border-radius: 8px;
+  word-break: break-all;
+}
+.qr-box { flex: 0 0 auto; }
+.qr-box svg { width: 150px; height: 150px; display: block; }
+@media (max-width: 640px) {
+  .detail-grid { grid-template-columns: 1fr; }
+}
+
+/* ---- Build history inline edit ---------------------------------------- */
+.inline-qty { display: inline-flex; gap: 6px; align-items: center; }
+.inline-qty input[type="number"] { width: 64px; padding: 4px 6px; }
+
+/* ---- Container / location label --------------------------------------- */
+.container-card { margin-bottom: 16px; }
+.container-field label { display: block; font-weight: 600; margin-bottom: 6px; }
+.container-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.container-row input[type="text"] { flex: 1 1 240px; padding: 10px 12px; font-size: 16px; }
+.saved-hint { color: #059669; }
+.container-hint { font-size: 12px; margin-top: 6px; }
+.loc-container { font-weight: 700; }

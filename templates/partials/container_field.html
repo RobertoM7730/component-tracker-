@@ -1,0 +1,14 @@
+<form id="container-field" class="container-field"
+      hx-post="{{ url_for('set_container', cid=c.id) }}"
+      hx-target="#container-field" hx-swap="outerHTML">
+  <label for="container-input">Container / location</label>
+  <div class="container-row">
+    <input id="container-input" type="text" name="container"
+           value="{{ c.container or '' }}"
+           placeholder="e.g. Drawer B3 · Bin 12"
+           maxlength="60" autocomplete="off">
+    <button class="btn sm" type="submit">Save</button>
+    {% if saved %}<span class="muted saved-hint">saved ✓</span>{% endif %}
+  </div>
+  <div class="muted container-hint">Letters and numbers — whatever helps you find it later.</div>
+</form>

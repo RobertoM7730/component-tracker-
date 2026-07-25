@@ -53,6 +53,10 @@
         <input type="text" name="location" value="{{ c.location or '' }}" placeholder="Drawer B3">
       </div>
       <div class="field">
+        <label>Container <span class="muted">(where it lives)</span></label>
+        <input type="text" name="container" value="{{ c.container or '' }}" placeholder="Drawer B3 · Bin 12" maxlength="60">
+      </div>
+      <div class="field">
         <label>Manufacturer</label>
         <input type="text" name="manufacturer" value="{{ c.manufacturer or '' }}">
       </div>

@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS components (
     quantity      INTEGER NOT NULL DEFAULT 0,
     min_quantity  INTEGER NOT NULL DEFAULT 0,
     location      TEXT,
+    container     TEXT,             -- which physical container/bin the part lives in (free alphanumeric)
     manufacturer  TEXT,
     supplier      TEXT,
     supplier_pn   TEXT,

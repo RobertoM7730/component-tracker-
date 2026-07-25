@@ -1,0 +1,7 @@
+<div id="qty-control" class="qty-detail {{ 'warn' if c.quantity <= c.min_quantity else '' }}">
+  <button title="Remove one" hx-post="{{ url_for('detail_adjust_qty', cid=c.id) }}"
+          hx-vals='{"delta": "-1"}' hx-target="#qty-control" hx-swap="outerHTML">−</button>
+  <span class="n">{{ c.quantity }}</span>
+  <button title="Add one" hx-post="{{ url_for('detail_adjust_qty', cid=c.id) }}"
+          hx-vals='{"delta": "1"}' hx-target="#qty-control" hx-swap="outerHTML">+</button>
+</div>

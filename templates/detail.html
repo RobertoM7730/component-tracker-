@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}{{ c.part_number or c.value or 'Component' }}{% endblock %}
+{% block content %}
+
+<p class="sub"><a href="{{ url_for('index') }}">&larr; Inventory</a></p>
+
+<div class="detail-head">
+  <h1 class="mono">{{ c.part_number or c.value or 'Component #' ~ c.id }}</h1>
+  <div class="detail-tags">
+    <span class="pill">{{ c.category }}</span>
+    {% if c.mount %}<span class="badge {{ 'merge' if c.mount == 'SMD' else 'new' }}">{{ c.mount }}</span>{% endif %}
+    {% if c.manufacturer %}<span class="muted">{{ c.manufacturer }}</span>{% endif %}
+  </div>
+</div>
+
+<div class="card container-card">
+  {% include "partials/container_field.html" %}
+</div>
+
+<div class="detail-grid">
+  <!-- Quantity: the number you'll check most often when you tap a tag -->
+  <div class="card detail-qty-card">
+    <div class="label">In stock</div>
+    {% include "partials/qty_control.html" %}
+    {% if c.min_quantity %}
+      <div class="muted" style="margin-top:8px">
+        low-stock threshold: {{ c.min_quantity }}
+        {% if c.quantity <= c.min_quantity %}<span class="badge low" style="margin-left:6px">LOW</span>{% endif %}
+      </div>
+    {% endif %}
+    <div class="detail-actions" style="margin-top:16px">
+      <a class="btn sm" href="{{ url_for('edit_component', cid=c.id) }}">Edit</a>
+    </div>
+  </div>
+
+  <!-- Everything else about the part -->
+  <div class="card">
+    <table class="kv">
+      <tbody>
+        {% if c.specs %}
+        <tr><th>Specs</th><td>
+          {% for s in c.specs %}
+            <span class="spec" title="{{ spec_label.get(s.name, s.name) }}">{{ s.value_text }}</span>
+          {% endfor %}
+        </td></tr>
+        {% endif %}
+        {% if c.value %}<tr><th>Value</th><td>{{ c.value }}</td></tr>{% endif %}
+        <tr><th>Package</th><td>{{ c.package or '—' }}</td></tr>
+        <tr><th>Location</th><td class="loc">{{ c.location or '—' }}</td></tr>
+        <tr><th>Manufacturer</th><td>{{ c.manufacturer or '—' }}</td></tr>
+        <tr><th>Mfr part #</th><td class="mono">{{ c.part_number or '—' }}</td></tr>
+        <tr><th>Supplier</th><td>{{ c.supplier or '—' }}</td></tr>
+        <tr><th>Supplier part #</th><td class="mono">{{ c.supplier_pn or '—' }}</td></tr>
+        <tr><th>Unit cost</th><td>{{ c.unit_cost | money }}</td></tr>
+        {% if c.datasheet_url %}
+        <tr><th>Datasheet</th><td><a href="{{ c.datasheet_url }}" target="_blank" rel="noopener">Open datasheet</a></td></tr>
+        {% endif %}
+        {% if c.notes %}<tr><th>Notes</th><td>{{ c.notes }}</td></tr>{% endif %}
+        <tr><th>Updated</th><td class="muted">{{ c.updated_at }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- NFC / QR helper: what to write onto the drawer's tag -->
+<div class="card nfc-card">
+  <div class="label">NFC tag / QR for this drawer</div>
+  <p class="muted" style="margin:6px 0 12px">
+    Write this exact link to the drawer's NFC tag (e.g. with the free <strong>NFC Tools</strong> app &rarr; Write &rarr; Add a record &rarr; URL/URI).
+    Tapping the tag opens this page. The QR below goes to the same place.
+  </p>
+  <div class="nfc-row">
+    <div class="nfc-url">
+      <code id="nfc-url" class="mono">{{ nfc_url }}</code>
+      <button class="btn sm" type="button" onclick="copyNfc()">Copy link</button>
+      <span id="copied" class="muted" style="display:none">copied ✓</span>
+    </div>
+    {% if qr_svg %}
+      <div class="qr-box">{{ qr_svg | safe }}</div>
+    {% else %}
+      <div class="muted qr-box">QR preview needs <code>segno</code> (run <code>pip install segno</code>). The NFC link above still works.</div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  function copyNfc() {
+    var url = document.getElementById('nfc-url').textContent.trim();
+    var done = function () {
+      var tag = document.getElementById('copied');
+      tag.style.display = 'inline';
+      setTimeout(function () { tag.style.display = 'none'; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done).catch(done);
+    } else {
+      var r = document.createRange(); r.selectNode(document.getElementById('nfc-url'));
+      window.getSelection().removeAllRanges(); window.getSelection().addRange(r);
+      try { document.execCommand('copy'); } catch (e) {}
+      done();
+    }
+  }
+</script>
+
+{% endblock %}

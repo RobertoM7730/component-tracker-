@@ -1,6 +1,6 @@
 <tr id="row-{{ c.id }}">
   <td>
-    <div class="pn mono">{{ c.part_number or '—' }}</div>
+    <div class="pn mono"><a href="{{ url_for('component_detail', cid=c.id) }}">{{ c.part_number or c.value or '#' ~ c.id }}</a></div>
     <div style="display:flex;gap:6px;align-items:center;margin-top:3px">
       <span class="pill">{{ c.category }}</span>
       {% if c.manufacturer %}<span class="muted" style="font-size:12px">{{ c.manufacturer }}</span>{% endif %}
@@ -17,7 +17,7 @@
     {% if c.mount %}<span class="badge {{ 'merge' if c.mount=='SMD' else 'new' }}" style="margin-left:4px">{{ c.mount }}</span>{% endif %}
     {% if not c.package and not c.mount %}<span class="muted">—</span>{% endif %}
   </td>
-  <td class="hide-sm muted">{{ c.location or '—' }}</td>
+  <td class="hide-sm">{% if c.container %}<div class="loc-container">{{ c.container }}</div>{% endif %}<div class="muted">{{ c.location or ('—' if not c.container else '') }}</div></td>
   <td>
     <div class="qty {{ 'warn' if c.quantity <= c.min_quantity else '' }}">
       <button title="Remove one" hx-post="{{ url_for('adjust_qty', cid=c.id) }}"

@@ -1,29 +1,67 @@
 {% extends "base.html" %}
-{% block title %}Build history{% endblock %}
+{% block title %}Build history
+<script>
+  // Only bother the user if the number actually changed, and show what stock
+  // move it implies (more boards -> deduct parts, fewer -> return parts).
+  function confirmQty(form) {
+    var input = form.querySelector('input[name="board_qty"]');
+    var oldVal = parseInt(input.dataset.original, 10);
+    var newVal = parseInt(input.value, 10);
+    if (isNaN(newVal) || newVal < 1) {
+      alert('Quantity built must be at least 1.');
+      return false;
+    }
+    if (newVal === oldVal) return false;            // nothing to do
+    var dir = newVal > oldVal
+      ? 'deduct the extra parts from stock'
+      : 'return the difference to stock';
+    return confirm('Change quantity built from ' + oldVal + ' to ' + newVal +
+                   '? This will ' + dir + '.');
+  }
+</script>
+
+{% endblock %}
 {% block content %}
 
 <h1>Build history</h1>
-<p class="sub">Every PCB BOM you've consumed from stock, newest first.</p>
+<p class="sub">Every PCB BOM you've consumed from stock, newest first. Change the
+quantity built and stock re-adjusts automatically; delete a build to return its
+parts to stock.</p>
 
 <div class="card">
   <table>
     <thead>
-      <tr><th>Board</th><th>Qty built</th><th>Lines</th><th>Parts used</th><th>When</th><th>Notes</th></tr>
+      <tr><th>Board</th><th>Qty built</th><th>Lines</th><th>Parts used</th>
+          <th>When</th><th>Notes</th><th></th></tr>
     </thead>
     <tbody>
       {% if builds %}
         {% for b in builds %}
         <tr>
           <td class="pn">{{ b.name }}</td>
-          <td>{{ b.board_qty }}</td>
+          <td>
+            <form method="post" action="{{ url_for('edit_build', bid=b.id) }}"
+                  class="inline-qty" onsubmit="return confirmQty(this);">
+              <input type="number" name="board_qty" min="1" value="{{ b.board_qty }}"
+                     data-original="{{ b.board_qty }}"
+                     aria-label="Quantity built for {{ b.name }}">
+              <button class="btn sm" type="submit">Save</button>
+            </form>
+          </td>
           <td>{{ b.line_count }}</td>
           <td>{{ b.parts_used }}</td>
           <td class="muted">{{ b.created_at }}</td>
           <td class="muted">{{ b.notes or '—' }}</td>
+          <td>
+            <form method="post" action="{{ url_for('remove_build', bid=b.id) }}"
+                  onsubmit="return confirm('Delete this build and return its parts to stock?');">
+              <button class="btn sm danger" type="submit">Delete</button>
+            </form>
+          </td>
         </tr>
         {% endfor %}
       {% else %}
-        <tr><td colspan="6"><div class="empty"><div class="big">🔧</div>
+        <tr><td colspan="7"><div class="empty"><div class="big">🔧</div>
           No builds yet. Import a PCB BOM to record one.</div></td></tr>
       {% endif %}
     </tbody>

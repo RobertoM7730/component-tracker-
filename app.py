@@ -21,6 +21,11 @@ import specs
 import query
 import lookup
 
+try:
+    import segno  # pure-Python QR code generator, no extra dependencies
+except ImportError:  # QR just won't render until `pip install segno`
+    segno = None
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("TRACKER_SECRET", "dev-only-change-me")
 
@@ -220,6 +225,66 @@ def adjust_qty(cid):
     return render_template("partials/row.html", c=component)
 
 
+# --------------------------------------------------------------------------- #
+# Component detail page  (this is what an NFC tag points to)
+# --------------------------------------------------------------------------- #
+
+def _qr_svg(url):
+    """Return an inline SVG QR code for the URL, or None if segno isn't
+    installed. The QR is a convenience/fallback — the NFC tag itself just stores
+    the plain URL, so scanning a tag works with or without this."""
+    if segno is None:
+        return None
+    buf = io.BytesIO()
+    segno.make(url, error="m").save(buf, kind="svg", scale=4, border=2,
+                                    xmldecl=False)
+    return buf.getvalue().decode("utf-8")
+
+
+@app.route("/c/<int:cid>")
+def component_detail(cid):
+    """Detail page for one component. Kept at the short path /c/<id> so the URL
+    written onto the NFC tag stays small. Tap the tag -> phone opens this page."""
+    component = db.get_component(cid)
+    if component is None:
+        abort(404)
+    nfc_url = url_for("component_detail", cid=cid, _external=True)
+    return render_template("detail.html", c=component, nfc_url=nfc_url,
+                           qr_svg=_qr_svg(nfc_url),
+                           spec_label=specs.LABEL_BY_NAME)
+
+
+@app.route("/c/<int:cid>/container", methods=["POST"])
+def set_container(cid):
+    """Set/update the free-text container label for a component. This is the field
+    you fill in when you scan a container's tag, so the tracker remembers where the
+    part lives for next time. Accepts letters, numbers, and simple punctuation."""
+    if db.get_component(cid) is None:
+        abort(404)
+    container = request.form.get("container", "").strip()
+    db.update_component(cid, {"container": container})
+    # update_component ignores empty values, so clear explicitly when blanked.
+    if not container:
+        db.clear_container(cid)
+    component = db.get_component(cid)
+    return render_template("partials/container_field.html", c=component, saved=True)
+
+
+@app.route("/c/<int:cid>/qty", methods=["POST"])
+def detail_adjust_qty(cid):
+    """HTMX stepper for the detail page. Returns just the quantity control so the
+    number updates in place without reloading (handy when scanning at the bench)."""
+    try:
+        delta = int(request.form.get("delta", "0"))
+    except ValueError:
+        delta = 0
+    db.adjust_quantity(cid, delta)
+    component = db.get_component(cid)
+    if component is None:
+        abort(404)
+    return render_template("partials/qty_control.html", c=component)
+
+
 @app.route("/low-stock")
 def low_stock():
     components = db.list_components(low_stock=True, sort="quantity")
@@ -406,6 +471,38 @@ def import_pcb_commit():
         flash("Build recorded, but some parts ran short: " + "; ".join(shortages), "warn")
     else:
         flash(f"Build '{name}' x{board_qty} recorded and stock deducted.", "ok")
+    return redirect(url_for("builds"))
+
+
+@app.route("/builds/<int:bid>/update", methods=["POST"])
+def edit_build(bid):
+    """Change a build's quantity (and optionally name/notes) after creation,
+    reconciling stock. Used when you actually built a different number of boards
+    than first recorded."""
+    board_qty = request.form.get("board_qty")
+    ok, shortages = db.update_build(
+        bid,
+        board_qty=board_qty if board_qty not in (None, "") else None,
+        name=request.form.get("name"),
+        notes=request.form.get("notes"),
+    )
+    if not ok:
+        abort(404)
+    if shortages:
+        flash("Build updated, but some parts ran short: " + "; ".join(shortages),
+              "warn")
+    else:
+        flash("Build updated and stock reconciled.", "ok")
+    return redirect(url_for("builds"))
+
+
+@app.route("/builds/<int:bid>/delete", methods=["POST"])
+def remove_build(bid):
+    """Delete a build and return the parts it consumed back to stock."""
+    restocked = db.delete_build(bid)
+    if restocked is None:
+        abort(404)
+    flash(f"Build deleted; {restocked} part(s) returned to stock.", "ok")
     return redirect(url_for("builds"))
 
 
