@@ -9,6 +9,8 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 
+import categories
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 DB_PATH = os.environ.get("TRACKER_DB", os.path.join(DATA_DIR, "components.db"))
@@ -20,10 +22,9 @@ COMPONENT_FIELDS = [
     "mount", "datasheet_url", "notes",
 ]
 
-CANONICAL_CATEGORIES = [
-    "resistor", "capacitor", "inductor", "diode", "transistor",
-    "ic", "connector", "crystal", "switch",
-]
+# The families that always have a tab. Defined in categories.py so the name of a
+# category is decided in exactly one place.
+CANONICAL_CATEGORIES = categories.PRIMARY
 
 _SPEC_OPS = {">=": ">=", "<=": "<=", ">": ">", "<": "<", "=": "="}
 
@@ -56,7 +57,29 @@ def init_db():
             conn.execute("ALTER TABLE components ADD COLUMN mount TEXT")
         if "container" not in existing:
             conn.execute("ALTER TABLE components ADD COLUMN container TEXT")
+        _merge_category_spellings(conn)
     conn.close()
+
+
+def _merge_category_spellings(conn):
+    """Fold every stored category onto its canonical name.
+
+    Rows written before categories.py existed can spell one family several ways
+    ("IC", "Ic", "ICs"), which is what produced duplicate tabs. Running this on
+    every start is cheap (one grouped read, an UPDATE only for rows that are
+    actually spelled differently) and keeps the merge in force for any row that
+    slips in from an old script or a hand-edited database."""
+    rows = conn.execute(
+        "SELECT DISTINCT category FROM components WHERE category IS NOT NULL"
+    ).fetchall()
+    for row in rows:
+        raw = row["category"]
+        canonical = categories.normalize(raw)
+        if canonical != raw:
+            conn.execute(
+                "UPDATE components SET category = ? WHERE category IS ?",
+                (canonical, raw),
+            )
 
 
 # --------------------------------------------------------------------------- #
@@ -249,6 +272,10 @@ def _clean(data):
     for f in COMPONENT_FIELDS:
         if f in data and data[f] not in (None, ""):
             out[f] = data[f]
+    # Every write goes through here, so this is the one gate that guarantees a
+    # family can never be stored under two different spellings.
+    if "category" in out:
+        out["category"] = categories.normalize(out["category"])
     for f in ("quantity", "min_quantity"):
         if f in out:
             out[f] = int(out[f])

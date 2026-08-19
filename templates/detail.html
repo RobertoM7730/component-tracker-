@@ -7,7 +7,7 @@
 <div class="detail-head">
   <h1 class="mono">{{ c.part_number or c.value or 'Component #' ~ c.id }}</h1>
   <div class="detail-tags">
-    <span class="pill">{{ c.category }}</span>
+    <span class="pill">{{ c.category | category_label }}</span>
     {% if c.mount %}<span class="badge {{ 'merge' if c.mount == 'SMD' else 'new' }}">{{ c.mount }}</span>{% endif %}
     {% if c.manufacturer %}<span class="muted">{{ c.manufacturer }}</span>{% endif %}
   </div>

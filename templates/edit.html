@@ -18,9 +18,10 @@
         <label>Category *</label>
         <input type="text" name="category" id="category" list="cat-list"
                value="{{ c.category or '' }}" placeholder="resistor" required oninput="syncSpecs()">
+        {# Every category the app knows, so typing picks an existing family
+           instead of inventing a near-duplicate of one. #}
         <datalist id="cat-list">
-          {% for cat in spec_meta.keys() %}<option value="{{ cat }}">{% endfor %}
-          <option value="ic"><option value="connector"><option value="switch">
+          {% for cat in all_categories %}<option value="{{ cat }}">{% endfor %}
         </datalist>
       </div>
       <div class="field">

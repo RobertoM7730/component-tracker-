@@ -2,7 +2,7 @@
   <td>
     <div class="pn mono"><a href="{{ url_for('component_detail', cid=c.id) }}">{{ c.part_number or c.value or '#' ~ c.id }}</a></div>
     <div style="display:flex;gap:6px;align-items:center;margin-top:3px">
-      <span class="pill">{{ c.category }}</span>
+      <span class="pill">{{ c.category | category_label }}</span>
       {% if c.manufacturer %}<span class="muted" style="font-size:12px">{{ c.manufacturer }}</span>{% endif %}
     </div>
   </td>

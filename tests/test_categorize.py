@@ -1,7 +1,8 @@
 """Categorization: finer purposes, part-number fallback, and auto-created tabs."""
 
-import db
 import bom
+import categories
+import db
 
 
 # --- offline keyword rules: finer purposes win over broad families ---------- #
@@ -198,3 +199,81 @@ def test_opamp_stays_opamp_not_ic():
 
 def test_sensor_keyword_beats_ic():
     assert bom.guess_category("Temperature sensor IC") == "sensor"
+
+
+# --- broader part-type coverage --------------------------------------------- #
+
+def test_new_ic_purposes_from_description():
+    assert bom.guess_category("Dual comparator, open collector") == "comparator"
+    assert bom.guess_category("8-bit shift register") == "logic"
+    assert bom.guess_category("Real-time clock with battery backup") == "rtc"
+    assert bom.guess_category("RS-485 transceiver, half duplex") == "interface"
+    assert bom.guess_category("Class-D audio amplifier 3W") == "audio amplifier"
+    assert bom.guess_category("8-channel analog multiplexer") == "analog switch"
+    assert bom.guess_category("OLED display controller") == "display driver"
+    assert bom.guess_category("Programmable watchdog timer") == "timer"
+    assert bom.guess_category("FPGA, 4000 LUTs") == "fpga"
+
+
+def test_new_ic_purposes_from_part_number():
+    assert bom.guess_category("", "", "LM339") == "comparator"
+    assert bom.guess_category("", "", "SN74HC595") == "logic"
+    assert bom.guess_category("", "", "CD4017") == "logic"
+    assert bom.guess_category("", "", "DS3231") == "rtc"
+    assert bom.guess_category("", "", "MAX485") == "interface"
+    assert bom.guess_category("", "", "CH340G") == "interface"
+    assert bom.guess_category("", "", "MCP23017") == "interface"
+    assert bom.guess_category("", "", "PAM8403") == "audio amplifier"
+    assert bom.guess_category("", "", "CD4051B") == "analog switch"
+    assert bom.guess_category("", "", "SSD1306") == "display driver"
+    assert bom.guess_category("", "", "NE555") == "timer"
+    assert bom.guess_category("", "", "ICE40LP1K") == "fpga"
+    assert bom.guess_category("", "", "TP4056") == "voltage regulator"
+
+
+def test_physical_part_types():
+    assert bom.guess_category("10k trimpot, 3296W") == "potentiometer"
+    assert bom.guess_category("SPDT relay, 5V coil") == "relay"
+    assert bom.guess_category("CR2032 coin cell holder") == "battery"
+    assert bom.guess_category("Piezo buzzer, 3V") == "buzzer"
+    assert bom.guess_category("NEMA17 stepper motor") == "motor"
+    assert bom.guess_category("0.96in OLED display module") == "display"
+    assert bom.guess_category("2.4GHz chip antenna") == "antenna"
+    assert bom.guess_category("M3 standoff, brass") == "hardware"
+    assert bom.guess_category("Test point, SMD") == "test point"
+    assert bom.guess_category("Ribbon cable, 10-way") == "cable"
+    assert bom.guess_category("MOV varistor 275V") == "varistor"
+    assert bom.guess_category("BT136 triac 600V") == "thyristor"
+
+
+# --- footprints ------------------------------------------------------------- #
+
+def test_kicad_footprint_categorizes_a_part_with_no_description():
+    fp = "Resistor_SMD:R_0603_1608Metric"
+    assert bom.guess_category("", "", "", package=fp) == "resistor"
+    assert bom.guess_category("", "", "", package="Crystal:Crystal_SMD_3225") == "crystal"
+    assert bom.guess_category("", "", "", package="Relay_THT:Relay_SPDT") == "relay"
+    assert bom.guess_category("", "", "", package="Sensor:Bosch_BME280") == "sensor"
+    assert bom.guess_category("", "", "", package="TestPoint:TestPoint_Pad") == "test point"
+    assert bom.guess_category("", "", "", package="Package_SO:SOIC-8") == "ic"
+    assert bom.guess_category("", "", "", package="Package_TO_SOT_SMD:SOT-23") == "transistor"
+
+
+def test_more_specific_footprint_library_wins():
+    assert bom.category_from_footprint("Connector_JST:JST_PH_S2B") == "connector"
+    assert bom.category_from_footprint("Button_Switch_SMD:SW_SPST") == "switch"
+
+
+def test_bare_package_name_is_used_when_unambiguous():
+    assert bom.category_from_footprint("SOT-23") == "transistor"
+    assert bom.category_from_footprint("SOIC-8") == "ic"
+    assert bom.category_from_footprint("R_0805") == "resistor"
+    # An 0603 alone could be a resistor, capacitor, inductor or LED: no guess.
+    assert bom.category_from_footprint("0603") is None
+
+
+def test_categories_returned_are_always_canonical():
+    for text in ["10k resistor", "MOSFET N-channel", "USB connector",
+                 "16-bit ADC", "coin cell holder", "shift register"]:
+        cat = bom.guess_category(text)
+        assert cat == categories.normalize(cat)

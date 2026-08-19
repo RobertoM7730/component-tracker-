@@ -17,6 +17,21 @@ Built to run on a Proxmox LXC container, but it runs anywhere Python does.
   checks stock, flags shortages, then deducts the parts and records the build.
 - **Low-stock view** — everything at or below its threshold, ready to reorder.
 - **CSV export** — one-click backup of the whole inventory.
+- **Auto-categorization** — every part is sorted into a family from its
+  description, its part number, or its KiCad footprint, across ~50 part types
+  (passives, discretes, ICs by purpose, and physical parts). Category names are
+  normalized on the way in, so "IC", "ICs" and "Ic" are one family with one tab,
+  never three.
+
+## Categories
+
+`categories.py` is the single source of truth: it lists every category, its
+display label, its aliases, and the keyword / part-number / footprint rules used
+to recognize it. To teach the app a new part type, add one entry to
+`CATEGORY_DEFS` and a matching rule — the tab, the filter, the edit-form
+suggestions and the importer all pick it up. Aliases are how families get merged:
+anything listed as an alias is folded onto the canonical name on every write,
+and old rows are folded on startup.
 
 ## Tech
 

@@ -9,6 +9,10 @@ was sitting uncategorized becomes "mosfet").
 By default it ONLY touches rows that are currently uncategorized, so a category
 you set by hand is never overwritten. Pass --all to re-evaluate every row.
 
+Duplicate spellings of a category ("IC" vs "Ic") are a separate matter: those
+are merged automatically every time the app starts, so this script only deals
+with parts whose family the rules can now identify.
+
 It is a DRY RUN unless you pass --apply, so you can see what it would do first.
 When applied, it also refreshes each changed row's spec fields to match its new
 category. Safe to re-run.

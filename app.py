@@ -17,6 +17,7 @@ from flask import (
 
 import db
 import bom
+import categories
 import specs
 import query
 import lookup
@@ -33,13 +34,15 @@ db.init_db()
 
 ALLOWED_EXT = {".csv", ".xlsx", ".xlsm", ".xls"}
 
-CANON_TABS = [
-    ("Resistors", "resistor"), ("Capacitors", "capacitor"),
-    ("Inductors", "inductor"), ("Diodes", "diode"),
-    ("Transistors", "transistor"), ("ICs", "ic"),
-    ("Connectors", "connector"), ("Crystals", "crystal"),
-    ("Switches", "switch"),
-]
+# Labels come from categories.py, so a tab is named the same way everywhere.
+CANON_TABS = [(categories.label(c), c) for c in categories.PRIMARY]
+
+
+@app.template_filter("category_label")
+def category_label(value):
+    """Render a category the way the tabs do, so a part's pill reads "ICs"
+    rather than the raw stored "ic"."""
+    return categories.label(value)
 
 
 @app.template_filter("money")
@@ -51,13 +54,20 @@ def money(v):
 
 
 def build_tabs(active):
-    """Build the tab bar: All, each canonical category, then any other category
+    """Build the tab bar: All, each primary category, then any other category
     that's actually in use (auto-created from the data), then Uncategorized.
 
-    The canonical tabs always show (even at count 0) so the core families stay
-    put. New purposes like "voltage regulator" appear on their own tab the moment
-    a part lands in them — no code change needed — and drop off when emptied."""
-    counts = db.category_counts()
+    The primary tabs always show (even at count 0) so the core families stay
+    put. A new purpose like "voltage regulator" appears on its own tab the moment
+    a part lands in it — no code change needed — and drops off when emptied.
+    Every name is normalized first, so "IC", "ICs" and "Ic" share one tab
+    instead of splitting the shelf three ways."""
+    raw_counts = db.category_counts()
+    counts = {}
+    for name, n in raw_counts.items():
+        counts[categories.normalize(name)] = counts.get(
+            categories.normalize(name), 0) + n
+    active = categories.normalize(active) if active else ""
     total = sum(counts.values())
     tabs = [{"label": "All", "value": "", "count": total,
              "active": active in (None, "")}]
@@ -65,18 +75,19 @@ def build_tabs(active):
         tabs.append({"label": label, "value": value,
                      "count": counts.get(value, 0), "active": active == value})
 
-    # Auto-created tabs: any in-use category that isn't canonical or the
-    # uncategorized bucket. Title-cased for display, raw value for filtering.
-    extra = [c for c in db.list_categories()
-             if c not in db.CANONICAL_CATEGORIES and c != "uncategorized"]
+    # Auto-created tabs: any in-use category that isn't primary or the
+    # uncategorized bucket, ordered the way categories.py groups them.
+    extra = sorted((c for c in counts
+                    if c not in db.CANONICAL_CATEGORIES
+                    and c != categories.UNCATEGORIZED),
+                   key=categories.sort_key)
     for value in extra:
-        tabs.append({"label": value.title(), "value": value,
+        tabs.append({"label": categories.label(value), "value": value,
                      "count": counts.get(value, 0), "active": active == value})
 
-    uncat = (counts.get("uncategorized", 0) + counts.get("", 0)
-             + counts.get(None, 0))
     tabs.append({"label": "Uncategorized", "value": "uncategorized",
-                 "count": uncat, "active": active == "uncategorized"})
+                 "count": counts.get(categories.UNCATEGORIZED, 0),
+                 "active": active == categories.UNCATEGORIZED})
     return tabs
 
 
@@ -118,10 +129,17 @@ def _parse_search():
 # Inventory
 # --------------------------------------------------------------------------- #
 
+def _category_arg():
+    """The category filter from the query string, folded to its canonical name so
+    an old bookmark of ``?category=ICs`` still lands on the ICs tab."""
+    raw = request.args.get("category", "").strip()
+    return categories.normalize(raw) if raw else ""
+
+
 @app.route("/")
 def index():
     q_display, text, conditions = _parse_search()
-    category = request.args.get("category", "").strip()
+    category = _category_arg()
     sort = request.args.get("sort", "updated_at")
     components = db.list_components(search=text, category=category, sort=sort,
                                    spec_conditions=conditions)
@@ -142,7 +160,7 @@ def index():
 def search():
     """HTMX endpoint: returns just the table body as the user types/filters."""
     q_display, text, conditions = _parse_search()
-    category = request.args.get("category", "").strip()
+    category = _category_arg()
     sort = request.args.get("sort", "updated_at")
     components = db.list_components(search=text, category=category, sort=sort,
                                    spec_conditions=conditions)
@@ -151,7 +169,8 @@ def search():
 
 @app.route("/component/new")
 def new_component():
-    return render_template("edit.html", component=None, spec_meta=_spec_meta())
+    return render_template("edit.html", component=None, spec_meta=_spec_meta(),
+                           all_categories=categories.ALL)
 
 
 @app.route("/component/<int:cid>/edit")
@@ -160,15 +179,17 @@ def edit_component(cid):
     if component is None:
         abort(404)
     return render_template("edit.html", component=component,
-                           spec_meta=_spec_meta())
+                           spec_meta=_spec_meta(),
+                           all_categories=categories.ALL)
 
 
 @app.route("/component/save", methods=["POST"])
 @app.route("/component/<int:cid>/save", methods=["POST"])
 def save_component(cid=None):
     data = {f: request.form.get(f, "").strip() for f in db.COMPONENT_FIELDS}
-    if not data.get("category"):
-        data["category"] = "uncategorized"
+    # Normalize here too (not just on the way into the database) so the specs
+    # extracted below are the ones for the canonical category.
+    data["category"] = categories.normalize(data.get("category"))
     if not data.get("mount"):
         data["mount"] = specs.guess_mount(data.get("package"), data.get("notes"))
     spec_list = _specs_from_form(data["category"], request.form,
@@ -386,7 +407,8 @@ def import_order_commit():
         if str(i) not in selected:
             continue
         qty = int(request.form.get(f"qty_{i}", r.get("quantity", 0)) or 0)
-        category = request.form.get(f"category_{i}", r.get("category")) or "uncategorized"
+        category = categories.normalize(
+            request.form.get(f"category_{i}", r.get("category")))
         location = request.form.get(f"location_{i}", "").strip()
         spec_list = specs.extract_specs(category, r.get("value"),
                                         r.get("description"), r.get("package"))

@@ -24,6 +24,7 @@ import os
 import urllib.error
 import urllib.request
 
+import categories
 import db
 
 API_KEY = os.environ.get("MOUSER_API_KEY", "").strip()
@@ -32,32 +33,6 @@ ENABLED = bool(API_KEY)
 _ENDPOINT = "https://api.mouser.com/api/v1/search/partnumber?apiKey=" + API_KEY
 _TIMEOUT = 6  # seconds — never let a slow API stall an import
 _CACHE_PATH = os.path.join(os.path.dirname(db.DB_PATH), "part_category_cache.json")
-
-# Substrings Mouser uses in its "Category" text -> our category names. Checked in
-# order, first hit wins, so put the finer purposes before the broad families.
-_CATEGORY_MAP = [
-    ("mosfet", "mosfet"),
-    ("voltage regulator", "voltage regulator"),
-    ("ldo", "voltage regulator"),
-    ("dc dc", "voltage regulator"),
-    ("dc-dc", "voltage regulator"),
-    ("voltage reference", "voltage reference"),
-    ("optocoupler", "optocoupler"),
-    ("opto", "optocoupler"),
-    ("microcontroller", "microcontroller"),
-    ("transistor", "transistor"),
-    ("resistor", "resistor"),
-    ("capacitor", "capacitor"),
-    ("inductor", "inductor"),
-    ("diode", "diode"),
-    ("led", "diode"),
-    ("crystal", "crystal"),
-    ("oscillator", "crystal"),
-    ("connector", "connector"),
-    ("switch", "switch"),
-    ("fuse", "fuse"),
-]
-
 
 def _load_cache():
     try:
@@ -77,11 +52,14 @@ def _save_cache(cache):
 
 
 def _map_category(text):
-    blob = (text or "").lower()
-    for needle, cat in _CATEGORY_MAP:
-        if needle in blob:
-            return cat
-    return None
+    """Turn Mouser's category text ("Linear Voltage Regulators") into one of our
+    categories. The offline keyword rules already know how to read descriptive
+    text like this, so they do the work here too — one set of rules to maintain,
+    and an online answer can never invent a category name the tabs don't know."""
+    if not text:
+        return None
+    cat = categories.guess_category(text)
+    return None if cat == categories.UNCATEGORIZED else cat
 
 
 def _query_provider(part_number):
