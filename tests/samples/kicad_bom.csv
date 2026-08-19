@@ -1,0 +1,6 @@
+"Reference","Value","Footprint","Datasheet","Qty"
+"R1, R2, R3","10k","Resistor_SMD:R_0805_2012Metric","",3
+"C1, C2","100n","Capacitor_SMD:C_0402_1005Metric","",2
+"U1","STM32F103C8T6","Package_QFP:LQFP-48_7x7mm_P0.5mm","",1
+"D1","LED_Green","LED_SMD:LED_0805_2012Metric","",1
+"R4","4k7","Resistor_SMD:R_0603_1608Metric","",1

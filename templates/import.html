@@ -40,6 +40,27 @@
     <button class="btn primary" type="submit">Check & preview →</button>
   </form>
 
+  <form class="card import-card" method="post" action="{{ url_for('compare_preview') }}"
+        enctype="multipart/form-data">
+    <h2>🔍 Compare BOM <span class="badge compare">check stock</span></h2>
+    <p class="desc">Upload a KiCad or design BOM to see which parts you already
+       have and generate a shopping list for what you need.</p>
+    <div class="form-grid" style="margin-bottom:14px">
+      <div class="field">
+        <label>Project name</label>
+        <input type="text" name="name" placeholder="Amp board rev C">
+      </div>
+      <div class="field">
+        <label>How many boards?</label>
+        <input type="number" name="board_qty" value="1" min="1">
+      </div>
+    </div>
+    <div class="dropzone">
+      <input type="file" name="bom" accept=".csv,.xlsx,.xls,.xlsm" required>
+    </div>
+    <button class="btn primary" type="submit">Compare against stock →</button>
+  </form>
+
 </div>
 
 <p class="sub" style="margin-top:24px">

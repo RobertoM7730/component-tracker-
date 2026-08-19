@@ -474,6 +474,147 @@ def import_pcb_commit():
     return redirect(url_for("builds"))
 
 
+# --------------------------------------------------------------------------- #
+# BOM comparison (checks stock without consuming)
+# --------------------------------------------------------------------------- #
+
+@app.route("/compare/preview", methods=["POST"])
+def compare_preview():
+    path, err = _save_upload()
+    if err:
+        flash(err, "err")
+        return redirect(url_for("import_home"))
+    result, err = _parse_or_flash(path)
+    if err:
+        flash(err, "err")
+        return redirect(url_for("import_home"))
+
+    board_qty = max(1, int(request.form.get("board_qty", "1") or 1))
+    name = request.form.get("name", "").strip() or "Untitled project"
+
+    for r in result["rows"]:
+        if r.get("package") and ":" in r["package"]:
+            r["kicad_footprint"] = r["package"]
+            r["package"] = bom.normalize_kicad_footprint(r["package"])
+
+        r["qty_per_board"] = r.get("quantity", 1) or 1
+        r["need"] = r["qty_per_board"] * board_qty
+
+        category = r.get("category", "uncategorized")
+
+        exact = db.find_component_by_part(r.get("part_number"), r.get("supplier_pn"))
+        if exact:
+            r["match_type"] = "exact"
+            r["matched"] = dict(exact)
+            r["in_stock"] = exact["quantity"]
+            continue
+
+        spec_name = specs.PRIMARY_SPEC.get(category)
+        if spec_name:
+            parsed = specs.parse_value_for_category(r.get("value", ""), category)
+            if parsed:
+                _, spec_value = parsed
+                matches = db.find_compatible(category, spec_name, spec_value,
+                                             r.get("package"))
+                if matches:
+                    best = matches[0]
+                    pkg = r.get("package", "").lower()
+                    best_pkg = (best.get("package") or "").lower()
+                    pkg_match = pkg and pkg in best_pkg
+                    r["match_type"] = "compatible" if pkg_match else "partial"
+                    r["matched"] = best
+                    r["in_stock"] = best["quantity"]
+                    continue
+
+        r["match_type"] = "none"
+        r["matched"] = None
+        r["in_stock"] = 0
+
+    stock_remaining = {}
+    for r in result["rows"]:
+        matched = r.get("matched")
+        if matched:
+            cid = matched["id"]
+            if cid not in stock_remaining:
+                stock_remaining[cid] = r["in_stock"]
+            allocated = min(r["need"], stock_remaining[cid])
+            stock_remaining[cid] -= allocated
+            r["short"] = r["need"] - allocated
+        else:
+            r["short"] = r["need"]
+
+    matched_count = sum(1 for r in result["rows"] if r["match_type"] == "exact"
+                        and r["short"] <= 0)
+    compatible_count = sum(1 for r in result["rows"]
+                          if r["match_type"] in ("compatible", "partial")
+                          and r["short"] <= 0)
+    missing_count = sum(1 for r in result["rows"] if r["match_type"] == "none")
+    short_count = sum(1 for r in result["rows"]
+                      if r["match_type"] != "none" and r["short"] > 0)
+
+    payload_rows = []
+    for r in result["rows"]:
+        payload_rows.append({
+            "part_number": r.get("part_number"),
+            "value": r.get("value"),
+            "package": r.get("package"),
+            "category": r.get("category"),
+            "designator": r.get("designator"),
+            "description": r.get("description"),
+            "quantity": r.get("quantity"),
+            "need": r.get("need"),
+            "short": r.get("short"),
+            "match_type": r.get("match_type"),
+        })
+
+    return render_template(
+        "compare_preview.html",
+        result=result,
+        name=name,
+        board_qty=board_qty,
+        matched_count=matched_count,
+        compatible_count=compatible_count,
+        missing_count=missing_count,
+        short_count=short_count,
+        payload=json.dumps(payload_rows),
+    )
+
+
+@app.route("/compare/shopping-list.csv", methods=["POST"])
+def compare_shopping_list():
+    rows = json.loads(request.form.get("payload", "[]"))
+    board_qty = max(1, int(request.form.get("board_qty", "1") or 1))
+    name = request.form.get("name", "project").strip().replace(" ", "_")
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Quantity", "Part Number", "Value", "Package",
+                     "Category", "Designator", "Description"])
+
+    for r in rows:
+        qty_to_buy = r.get("short", 0) or 0
+        if r.get("match_type") == "none":
+            qty_to_buy = r.get("need", r.get("quantity", 1))
+        if qty_to_buy <= 0:
+            continue
+        writer.writerow([
+            qty_to_buy,
+            r.get("part_number", ""),
+            r.get("value", ""),
+            r.get("package", ""),
+            r.get("category", ""),
+            r.get("designator", ""),
+            r.get("description", ""),
+        ])
+
+    return Response(
+        buf.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition":
+                 f"attachment; filename={name}_shopping_list.csv"},
+    )
+
+
 @app.route("/builds/<int:bid>/update", methods=["POST"])
 def edit_build(bid):
     """Change a build's quantity (and optionally name/notes) after creation,
