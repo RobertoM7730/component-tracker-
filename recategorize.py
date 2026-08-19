@@ -42,7 +42,8 @@ def main(argv):
             continue
         guess = bom.guess_category(
             r.get("notes"), r.get("value"), r.get("part_number"),
-            r.get("manufacturer"), r.get("package"),
+            r.get("manufacturer"),
+            package=r.get("package"),
         )
         if guess == "uncategorized" or guess == current:
             continue

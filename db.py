@@ -509,6 +509,38 @@ def update_build(build_id, board_qty=None, name=None, notes=None):
     return True, shortages
 
 
+def find_compatible(category, spec_name, spec_value, package=None):
+    """Find components with matching category and primary spec value, optionally
+    filtered by package. Returns list of component dicts."""
+    conn = get_connection()
+    if package:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT c.* FROM components c "
+            "JOIN component_specs cs ON cs.component_id = c.id "
+            "WHERE c.category = ? AND cs.name = ? "
+            "AND cs.value_num BETWEEN ? * 0.999 AND ? * 1.001 "
+            "AND c.package LIKE ? "
+            "ORDER BY c.quantity DESC LIMIT 5",
+            (category, spec_name, spec_value, spec_value, f"%{package}%"),
+        ).fetchall()]
+        if rows:
+            _attach_specs(conn, rows)
+            conn.close()
+            return rows
+    rows = [dict(r) for r in conn.execute(
+        "SELECT c.* FROM components c "
+        "JOIN component_specs cs ON cs.component_id = c.id "
+        "WHERE c.category = ? AND cs.name = ? "
+        "AND cs.value_num BETWEEN ? * 0.999 AND ? * 1.001 "
+        "ORDER BY c.quantity DESC LIMIT 5",
+        (category, spec_name, spec_value, spec_value),
+    ).fetchall()]
+    if rows:
+        _attach_specs(conn, rows)
+    conn.close()
+    return rows
+
+
 def clear_container(cid):
     """Explicitly blank a component's container label (update_component skips
     empty values, so clearing needs its own path)."""

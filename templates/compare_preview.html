@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}BOM Comparison — {{ name }}{% endblock %}
+{% block content %}
+
+<h1>BOM comparison: {{ name }}</h1>
+<p class="sub">
+  {{ result.rows | length }} line(s) · checking stock for <strong>{{ board_qty }}</strong> board(s).
+</p>
+
+<div class="stats">
+  <div class="stat">
+    <div class="label">Matched</div>
+    <div class="value" style="color:var(--ok)">{{ matched_count }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Compatible</div>
+    <div class="value" style="color:#93c5fd">{{ compatible_count }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Need to buy</div>
+    <div class="value" style="color:var(--danger)">{{ missing_count }}</div>
+  </div>
+  <div class="stat{% if short_count > 0 %} low{% endif %}">
+    <div class="label">Short stock</div>
+    <div class="value">{{ short_count }}</div>
+  </div>
+</div>
+
+{% if missing_count == 0 and short_count == 0 %}
+  <div class="banner ok">✅ You have every part in stock for this design.</div>
+{% elif missing_count > 0 %}
+  <div class="banner warn">⚠️ {{ missing_count }} part(s) not found in inventory — you'll need to order them.</div>
+{% endif %}
+
+{% for w in result.warnings %}<div class="flash warn">{{ w }}</div>{% endfor %}
+
+<div class="card" style="overflow-x:auto">
+  <table>
+    <thead>
+      <tr>
+        <th>Designator</th>
+        <th>Part number</th>
+        <th>Value</th>
+        <th>Package</th>
+        <th>Need</th>
+        <th>In stock</th>
+        <th>Status</th>
+        <th class="hide-sm">Inventory match</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in result.rows %}
+      <tr>
+        <td class="mono muted">{{ r.designator or '—' }}</td>
+        <td class="mono pn">{{ r.part_number or r.supplier_pn or '—' }}</td>
+        <td>{{ r.value or '—' }}</td>
+        <td class="mono">{{ r.package or '—' }}
+          {% if r.kicad_footprint %}<div class="muted" style="font-size:11px">{{ r.kicad_footprint }}</div>{% endif %}
+        </td>
+        <td><strong>{{ r.need }}</strong></td>
+        <td>{{ r.in_stock }}</td>
+        <td>
+          {% if r.match_type == 'exact' and r.short <= 0 %}
+            <span class="badge ok">matched</span>
+          {% elif r.match_type == 'compatible' and r.short <= 0 %}
+            <span class="badge compat">compatible</span>
+          {% elif r.match_type == 'partial' and r.short <= 0 %}
+            <span class="badge compat">diff pkg</span>
+          {% elif r.match_type != 'none' and r.short > 0 %}
+            <span class="badge short">short {{ r.short }}</span>
+          {% else %}
+            <span class="badge buy">buy {{ r.need }}</span>
+          {% endif %}
+        </td>
+        <td class="hide-sm">
+          {% if r.matched %}
+            <a href="{{ url_for('component_detail', cid=r.matched.id) }}">
+              {{ r.matched.part_number or r.matched.value or '#' ~ r.matched.id }}
+            </a>
+            {% if r.matched.package %}
+              <span class="muted" style="font-size:12px">· {{ r.matched.package }}</span>
+            {% endif %}
+            {% if r.match_type == 'partial' %}
+              <div class="muted" style="font-size:11px">different package</div>
+            {% endif %}
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<form method="post" action="{{ url_for('compare_shopping_list') }}" style="margin-top:16px">
+  <input type="hidden" name="payload" value="{{ payload | e }}">
+  <input type="hidden" name="board_qty" value="{{ board_qty }}">
+  <input type="hidden" name="name" value="{{ name | e }}">
+  <div class="form-actions">
+    {% if missing_count > 0 or short_count > 0 %}
+      <button class="btn primary" type="submit">⬇ Download shopping list (CSV)</button>
+    {% endif %}
+    <a class="btn" href="{{ url_for('import_home') }}">← Back</a>
+  </div>
+</form>
+
+{% endblock %}

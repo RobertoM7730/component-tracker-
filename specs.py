@@ -23,6 +23,13 @@ SPECS_BY_CATEGORY = {
     "microcontroller": [("voltage", "V"), ("frequency", "Hz")],
     "fuse":       [("current", "A"), ("voltage", "V")],
     "crystal":    [("frequency", "Hz")],
+    "dac":        [("voltage", "V")],
+    "adc":        [("voltage", "V")],
+    "op-amp":     [("voltage", "V")],
+    "sensor":     [("voltage", "V")],
+    "memory":     [("voltage", "V")],
+    "led driver": [("voltage", "V"), ("current", "A")],
+    "motor driver": [("voltage", "V"), ("current", "A")],
 }
 
 ALL_SPEC_NAMES = ["resistance", "capacitance", "inductance", "wattage",
@@ -165,6 +172,38 @@ def extract_specs(category, value="", description="", package=""):
             specs.append({"name": name, "value_text": text,
                           "value_num": num, "unit": unit})
     return specs
+
+
+PRIMARY_SPEC = {
+    "resistor": "resistance",
+    "capacitor": "capacitance",
+    "inductor": "inductance",
+    "crystal": "frequency",
+    "fuse": "current",
+}
+
+
+def parse_value_for_category(value, category):
+    """Parse a component value for a known category, returning (spec_name, value_num)
+    or None. Handles standard notation and KiCad shorthand like '10k', '100n'."""
+    spec_name = PRIMARY_SPEC.get(category)
+    if not spec_name or not value:
+        return None
+    parsed = PARSERS[spec_name](value)
+    if parsed:
+        return spec_name, parsed[1]
+    v = value.strip()
+    m = re.match(r'^(\d+(?:\.\d+)?)\s*([pnuµμmkKMG])\s*$', v)
+    if m:
+        num = float(m.group(1)) * SI.get(m.group(2), 1)
+        return spec_name, num
+    m = re.match(r'^(\d+)\s*[Rr]\s*$', v)
+    if m and category == "resistor":
+        return "resistance", float(m.group(1))
+    m = re.match(r'^(\d+(?:\.\d+)?)\s*$', v)
+    if m and category == "resistor":
+        return "resistance", float(m.group(1))
+    return None
 
 
 def specs_for_category(category):
