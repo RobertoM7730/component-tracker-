@@ -634,9 +634,9 @@ FOOTPRINT_LIBS = {
 # on its own could be a resistor, a capacitor, an inductor or an LED, so it is
 # deliberately absent.
 _PACKAGE_PATTERNS = [
-    ("resistor", r"^R[_-]?\d{4}\b"),
-    ("capacitor", r"^C[_-]?\d{4}\b|^CP[_-]|^Tantalum"),
-    ("inductor", r"^L[_-]?\d{4}\b"),
+    ("resistor", r"^R[_-]?\d{4}(?:_|$)"),
+    ("capacitor", r"^C[_-]?\d{4}(?:_|$)|^CP[_-]|^Tantalum"),
+    ("inductor", r"^L[_-]?\d{4}(?:_|$)"),
     ("diode", r"^D[_-]|^LED[_-]|^SOD-?\d|^DO-?\d{2}|^SMA\b|^SMB\b|^SMC\b"),
     ("transistor", r"^SOT-?\d|^TO-?\d{2,3}|^SC-?\d{2}"),
     ("ic", r"^SOIC|^SO-?\d|^[TM]?SSOP|^MSOP|^[TLV]?QFP|^[DQ]FN|^BGA|^LGA|"

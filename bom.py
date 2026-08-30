@@ -27,7 +27,7 @@ HEADER_ALIASES = {
     "manufacturer": ["manufacturer", "manufacture", "mfr", "brand", "mfg"],
     "description": ["description", "desc", "details", "comment", "specification"],
     "package": ["package", "footprint", "case", "package/case", "case/package"],
-    "value": ["value", "comment", "comp value", "val"],
+    "value": ["value", "comment", "comp value", "val", "designation"],
     "unit_cost": [
         "unit price", "unit price($)", "unit price(usd)", "price", "unit cost",
         "unit price (usd)", "unitprice",
@@ -115,10 +115,19 @@ def _read_rows(path):
     return _read_csv(path)
 
 
+def _detect_delimiter(text):
+    first_line = text.splitlines()[0] if text else ""
+    candidates = [",", ";", "\t"]
+    counts = {d: first_line.count(d) for d in candidates}
+    best = max(counts, key=counts.get)
+    return best if counts[best] > 0 else ","
+
+
 def _read_csv(path):
     with open(path, "r", encoding="utf-8-sig", newline="") as f:
         text = f.read()
-    reader = list(csv.reader(io.StringIO(text)))
+    delimiter = _detect_delimiter(text)
+    reader = list(csv.reader(io.StringIO(text), delimiter=delimiter))
     reader = [r for r in reader if any(c.strip() for c in r)]
     header_idx = _find_header_row(reader)
     headers = reader[header_idx]
