@@ -27,7 +27,8 @@ install -m 644 deploy/component-tracker.service        /etc/systemd/system/
 install -m 644 deploy/component-tracker-backup.service /etc/systemd/system/
 install -m 644 deploy/component-tracker-backup.timer   /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now component-tracker.service
+systemctl enable component-tracker.service
+systemctl restart component-tracker.service
 systemctl enable --now component-tracker-backup.timer
 
 echo

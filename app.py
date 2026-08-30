@@ -547,6 +547,18 @@ def compare_preview():
                     r["matched"] = best
                     r["in_stock"] = best["quantity"]
                     continue
+        else:
+            # No electrical spec for this family (ICs, connectors, switches...),
+            # so KiCad's Value/Designation column is usually the part identifier
+            # itself (e.g. "AMS1117-3.3", "ESP32-S3-WROOM-1-N8R8") rather than a
+            # measurement — worth trying as a part number when the BOM had no
+            # dedicated part-number column.
+            by_value = db.find_component_by_identifier(r.get("value"), category)
+            if by_value:
+                r["match_type"] = "exact"
+                r["matched"] = dict(by_value)
+                r["in_stock"] = by_value["quantity"]
+                continue
 
         r["match_type"] = "none"
         r["matched"] = None

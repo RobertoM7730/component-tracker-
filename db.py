@@ -250,6 +250,36 @@ def find_component_by_part(part_number, supplier_pn=None):
     return row
 
 
+def find_component_by_identifier(text, category=None):
+    """Look up a component by treating free text as a possible part number OR a
+    stored value string, for BOM comparison only. Broader than
+    find_component_by_part on purpose (a manual inventory entry may hold the
+    part number in the value field), so callers that mutate stock (Order BOM
+    merge) must not use this — a false value match there would misattribute
+    quantity to the wrong part."""
+    if not text:
+        return None
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM components WHERE part_number = ? COLLATE NOCASE",
+        (text,),
+    ).fetchone()
+    if row is None:
+        if category:
+            row = conn.execute(
+                "SELECT * FROM components WHERE value = ? COLLATE NOCASE "
+                "AND category = ?",
+                (text, category),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM components WHERE value = ? COLLATE NOCASE",
+                (text,),
+            ).fetchone()
+    conn.close()
+    return row
+
+
 def stats():
     conn = get_connection()
     row = conn.execute(
