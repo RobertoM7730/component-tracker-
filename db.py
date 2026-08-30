@@ -259,23 +259,45 @@ def find_component_by_identifier(text, category=None):
     quantity to the wrong part."""
     if not text:
         return None
+    t = text.strip()
+    if not t:
+        return None
     conn = get_connection()
     row = conn.execute(
         "SELECT * FROM components WHERE part_number = ? COLLATE NOCASE",
-        (text,),
+        (t,),
     ).fetchone()
     if row is None:
         if category:
             row = conn.execute(
                 "SELECT * FROM components WHERE value = ? COLLATE NOCASE "
                 "AND category = ?",
-                (text, category),
+                (t, category),
             ).fetchone()
         else:
             row = conn.execute(
                 "SELECT * FROM components WHERE value = ? COLLATE NOCASE",
-                (text,),
+                (t,),
             ).fetchone()
+    if row is None and len(t) >= 4:
+        # Loose last resort: a supplier often appends its own footprint or
+        # order code to a part number (LCSC's "HH 16P TYPE-C (Y385)" for a
+        # KiCad BOM that just says "HH 16P TYPE-C"), so require one string to
+        # contain the other rather than match exactly. Scoped to the same
+        # category to limit false positives.
+        if category:
+            candidates = conn.execute(
+                "SELECT * FROM components WHERE category = ?", (category,),
+            ).fetchall()
+        else:
+            candidates = conn.execute("SELECT * FROM components").fetchall()
+        tl = t.lower()
+        for c in candidates:
+            pn = (c["part_number"] or "").lower()
+            val = (c["value"] or "").lower()
+            if (pn and (tl in pn or pn in tl)) or (val and (tl in val or val in tl)):
+                row = c
+                break
     conn.close()
     return row
 
